@@ -6,6 +6,7 @@ import contactRoutes from '../../entities/contact/contact.routes.js';
 import serviceRoutes from '../../entities/service/service.routes.js';
 import bookingRoutes from '../../entities/booking/booking.routes.js';
 import reviewRoutes from '../../entities/review/review.routes.js';
+import dashboardRoutes from '../../entities/dashboard/dashboard.routes.js';
 
 
 const router = express.Router();
@@ -18,6 +19,7 @@ router.use('/v1/contact', contactRoutes);
 router.use('/v1/service', serviceRoutes);
 router.use('/v1/booking', bookingRoutes);
 router.use('/v1/review', reviewRoutes);
+router.use('/v1/dashboard', dashboardRoutes);
 
 
 export default router;

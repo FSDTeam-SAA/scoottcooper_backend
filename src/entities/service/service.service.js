@@ -1,3 +1,4 @@
+import Review from "../review/review.model.js";
 import Service from "./service.model.js";
 
 
@@ -29,8 +30,19 @@ export const getAllServicesService = async (page = 1, limit = 10) => {
 };
 
 
+
 export const getServiceByIdService = async (id) => {
-  return await Service.findById(id);
+
+  const service = await Service.findById(id);
+  if (!service) return null;
+
+  // Fetch top 5 reviews for this service
+  const topReviews = await Review.find({ service: id })
+    .populate('user', 'name email profileImage') 
+    .sort({ rating: -1, createdAt: -1 }) 
+    .limit(5);
+
+  return { service, topReviews };
 };
 
 

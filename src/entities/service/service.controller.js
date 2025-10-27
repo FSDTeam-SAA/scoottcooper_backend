@@ -72,15 +72,15 @@ export const getAllServices = async (req, res) => {
 
 export const getServiceById = async (req, res) => {
   try {
-    const service = await getServiceByIdService(req.params.id);
+    const { service, topReviews } = await getServiceByIdService(req.params.id);
     if (!service) {
-      return generateResponse(res, 404, false, "Service not found");
+      return generateResponse(res, 404, false, 'Service not found');
     }
 
     // Validate duration
     let fixedDuration = service.duration;
-    if (typeof fixedDuration === "number") fixedDuration = `${fixedDuration}m`;
-    else if (typeof fixedDuration === "string") fixedDuration = fixedDuration.trim();
+    if (typeof fixedDuration === 'number') fixedDuration = `${fixedDuration}m`;
+    else if (typeof fixedDuration === 'string') fixedDuration = fixedDuration.trim();
 
     if (!/^\d+(m|h)$/i.test(fixedDuration)) {
       return generateResponse(res, 400, false, "Invalid duration format. Use '30m' or '1h'.");
@@ -95,13 +95,48 @@ export const getServiceById = async (req, res) => {
     const responseData = {
       ...service._doc,
       generatedSlots,
+      topReviews, 
     };
 
-    generateResponse(res, 200, true, "Service fetched successfully", responseData);
+    generateResponse(res, 200, true, 'Service fetched successfully', responseData);
   } catch (error) {
-    generateResponse(res, 500, false, "Failed to fetch service", error.message);
+    generateResponse(res, 500, false, 'Failed to fetch service', error.message);
   }
 };
+
+
+// export const getServiceById = async (req, res) => {
+//   try {
+//     const service = await getServiceByIdService(req.params.id);
+//     if (!service) {
+//       return generateResponse(res, 404, false, "Service not found");
+//     }
+
+//     // Validate duration
+//     let fixedDuration = service.duration;
+//     if (typeof fixedDuration === "number") fixedDuration = `${fixedDuration}m`;
+//     else if (typeof fixedDuration === "string") fixedDuration = fixedDuration.trim();
+
+//     if (!/^\d+(m|h)$/i.test(fixedDuration)) {
+//       return generateResponse(res, 400, false, "Invalid duration format. Use '30m' or '1h'.");
+//     }
+
+//     // Generate available slots for UI
+//     const generatedSlots = service.schedule.map((item) => ({
+//       date: item.date,
+//       slots: generateTimeSlots(item.startTime, item.endTime, fixedDuration),
+//     }));
+
+//     const responseData = {
+//       ...service._doc,
+//       generatedSlots,
+//     };
+
+//     generateResponse(res, 200, true, "Service fetched successfully", responseData);
+//   } catch (error) {
+//     generateResponse(res, 500, false, "Failed to fetch service", error.message);
+//   }
+// };
 
 
 export const updateService = async (req, res) => {

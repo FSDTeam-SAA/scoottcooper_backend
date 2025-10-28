@@ -3,15 +3,23 @@ import Service from "../service/service.model.js";
 import User from "../auth/auth.model.js";
 import { generateResponse } from "../../lib/responseFormate.js";
 
-// ✅ Get bookings filtered by bookingStatus
+// ✅ Get bookings filtered by bookingStatus with pagination
 export const bookingHistory = async (req, res) => {
   try {
-    const { bookingStatus } = req.query; // get status from query (example: ?bookingStatus=confirmed)
+    const { bookingStatus, page = 1, limit = 10 } = req.query;
 
     const filter = {};
     if (bookingStatus) {
-      filter.bookingStatus = bookingStatus; // apply status filter if provided
+      filter.bookingStatus = bookingStatus;
     }
+
+    // Convert to numbers and calculate skip
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count for pagination
+    const totalBookings = await Booking.countDocuments(filter);
 
     const bookings = await Booking.find(filter)
       .populate({
@@ -22,7 +30,9 @@ export const bookingHistory = async (req, res) => {
         path: "userId",
         select: "email",
       })
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
 
     if (!bookings.length) {
       return generateResponse(res, 404, false, "No bookings found", []);
@@ -48,7 +58,17 @@ export const bookingHistory = async (req, res) => {
       200,
       true,
       `Bookings retrieved successfully${bookingStatus ? ` (filtered by ${bookingStatus})` : ""}`,
-      formattedData
+      {
+        bookings: formattedData,
+        pagination: {
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalBookings / limitNum),
+          totalBookings,
+          limit: limitNum,
+          hasNextPage: pageNum < Math.ceil(totalBookings / limitNum),
+          hasPrevPage: pageNum > 1
+        }
+      }
     );
   } catch (error) {
     console.error("Error fetching bookings:", error);
@@ -59,63 +79,111 @@ export const bookingHistory = async (req, res) => {
     });
   }
 };
-// Get total payments grouped by service
+
+// Get total payments grouped by service with pagination
 export const getServicePayments = async (req, res) => {
   try {
-    const servicePayments = await Booking.aggregate([
+    const { page = 1, limit = 10 } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count
+    const totalCount = await Booking.aggregate([
       {
-        // Optional: Filter only paid bookings
         $match: {
-          paymentStatus: "paid" // Remove this if you want all payments regardless of status
+          paymentStatus: "paid"
         }
       },
       {
-        // Group by serviceId and sum totalAmount
+        $group: {
+          _id: "$serviceId"
+        }
+      },
+      {
+        $count: "total"
+      }
+    ]);
+
+    const totalServices = totalCount.length > 0 ? totalCount[0].total : 0;
+
+    const servicePayments = await Booking.aggregate([
+      {
+        $match: {
+          paymentStatus: "paid"
+        }
+      },
+      {
         $group: {
           _id: "$serviceId",
           totalPayment: { $sum: "$totalAmount" },
-          bookingCount: { $sum: 1 } // Optional: count of bookings
+          bookingCount: { $sum: 1 }
         }
       },
       {
-        // Lookup service details
         $lookup: {
-          from: "services", // Make sure this matches your collection name
+          from: "services",
           localField: "_id",
           foreignField: "_id",
           as: "serviceDetails"
         }
       },
       {
-        // Unwind service details
         $unwind: "$serviceDetails"
       },
       {
-        // Project the desired fields
         $project: {
           _id: 0,
           serviceId: "$_id",
           title: "$serviceDetails.title",
           createdAt: "$serviceDetails.createdAt",
           totalPayment: 1,
-          bookingCount: 1 // Optional
+          bookingCount: 1
         }
       },
       {
-        // Sort by total payment (highest first)
         $sort: { totalPayment: -1 }
+      },
+      {
+        $skip: skip
+      },
+      {
+        $limit: limitNum
       }
     ]);
 
-    // Calculate total revenue from all services
-    const totalRevenue = servicePayments.reduce((sum, service) => sum + service.totalPayment, 0);
+    // Calculate total revenue from all services (not just current page)
+    const revenueData = await Booking.aggregate([
+      {
+        $match: {
+          paymentStatus: "paid"
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: "$totalAmount" }
+        }
+      }
+    ]);
+
+    const totalRevenue = revenueData.length > 0 ? revenueData[0].totalRevenue : 0;
 
     res.status(200).json({
       status: true,
       message: "Service payments fetched successfully",
       data: {
         services: servicePayments,
-        totalRevenue: totalRevenue
+        totalRevenue: totalRevenue,
+        pagination: {
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalServices / limitNum),
+          totalServices,
+          limit: limitNum,
+          hasNextPage: pageNum < Math.ceil(totalServices / limitNum),
+          hasPrevPage: pageNum > 1
+        }
       }
     });
 

@@ -7,11 +7,12 @@ const router = express.Router();
 
 
 
-router.get("/booking-history", bookingHistory);
-router.get("/my-wallet", getServicePayments)
-router.get("/static-data", dashboardHeader)
-router.get("/revenue-report", revenueReport)
+router.get("/booking-history", verifyToken, adminMiddleware, bookingHistory);
+router.get("/my-wallet", verifyToken, adminMiddleware, getServicePayments)
+router.get("/static-data", verifyToken, adminMiddleware, dashboardHeader)
+router.get("/revenue-report", verifyToken, adminMiddleware, revenueReport)
 
 export default router;
 
  
+

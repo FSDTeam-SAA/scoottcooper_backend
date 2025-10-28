@@ -1,6 +1,7 @@
 import { cloudinaryUpload } from "../../lib/cloudinaryUpload.js";
 import { generateTimeSlots } from "../../lib/generateSlots.js";
 import { generateResponse } from "../../lib/responseFormate.js";
+import Booking from "../booking/booking.model.js";
 import Service from "./service.model.js";
 import {
   createServiceService,
@@ -74,35 +75,95 @@ export const getServiceById = async (req, res) => {
   try {
     const { service, topReviews } = await getServiceByIdService(req.params.id);
     if (!service) {
-      return generateResponse(res, 404, false, 'Service not found');
+      return generateResponse(res, 404, false, "Service not found");
     }
 
     // Validate duration
     let fixedDuration = service.duration;
-    if (typeof fixedDuration === 'number') fixedDuration = `${fixedDuration}m`;
-    else if (typeof fixedDuration === 'string') fixedDuration = fixedDuration.trim();
+    if (typeof fixedDuration === "number") fixedDuration = `${fixedDuration}m`;
+    else if (typeof fixedDuration === "string") fixedDuration = fixedDuration.trim();
 
     if (!/^\d+(m|h)$/i.test(fixedDuration)) {
       return generateResponse(res, 400, false, "Invalid duration format. Use '30m' or '1h'.");
     }
 
+    // Fetch all booked slots for this service
+    const bookedSlots = await Booking.find({
+      serviceId: service._id,
+      bookingStatus: { $in: ["pending", "confirmed"] },
+    }).select("slots");
+
+    // Flatten booked slots into a single array
+    const bookedTimeSlots = bookedSlots.flatMap(b => b.slots.map(s => ({
+      date: new Date(s.date).toISOString().split("T")[0],
+      startTime: s.startTime,
+      endTime: s.endTime,
+    })));
+
     // Generate available slots for UI
-    const generatedSlots = service.schedule.map((item) => ({
-      date: item.date,
-      slots: generateTimeSlots(item.startTime, item.endTime, fixedDuration),
-    }));
+    const generatedSlots = service.schedule.map((item) => {
+      const allSlots = generateTimeSlots(item.startTime, item.endTime, fixedDuration);
+      const dateStr = new Date(item.date).toISOString().split("T")[0];
+
+      // Filter out booked ones
+      const availableSlots = allSlots.filter(slot => {
+        return !bookedTimeSlots.some(booked =>
+          booked.date === dateStr &&
+          booked.startTime === slot.startTime &&
+          booked.endTime === slot.endTime
+        );
+      });
+
+      return { date: item.date, slots: availableSlots };
+    });
 
     const responseData = {
       ...service._doc,
       generatedSlots,
-      topReviews, 
+      topReviews,
     };
 
-    generateResponse(res, 200, true, 'Service fetched successfully', responseData);
+    generateResponse(res, 200, true, "Service fetched successfully", responseData);
+
   } catch (error) {
-    generateResponse(res, 500, false, 'Failed to fetch service', error.message);
+    generateResponse(res, 500, false, "Failed to fetch service", error.message);
   }
 };
+
+
+// export const getServiceById = async (req, res) => {
+//   try {
+//     const { service, topReviews } = await getServiceByIdService(req.params.id);
+//     if (!service) {
+//       return generateResponse(res, 404, false, 'Service not found');
+//     }
+
+//     // Validate duration
+//     let fixedDuration = service.duration;
+//     if (typeof fixedDuration === 'number') fixedDuration = `${fixedDuration}m`;
+//     else if (typeof fixedDuration === 'string') fixedDuration = fixedDuration.trim();
+
+//     if (!/^\d+(m|h)$/i.test(fixedDuration)) {
+//       return generateResponse(res, 400, false, "Invalid duration format. Use '30m' or '1h'.");
+//     }
+
+//     // Generate available slots for UI
+//     const generatedSlots = service.schedule.map((item) => ({
+//       date: item.date,
+//       slots: generateTimeSlots(item.startTime, item.endTime, fixedDuration),
+//     }));
+
+//     const responseData = {
+//       ...service._doc,
+//       generatedSlots,
+//       topReviews, 
+//     };
+
+//     generateResponse(res, 200, true, 'Service fetched successfully', responseData);
+//   } catch (error) {
+//     generateResponse(res, 500, false, 'Failed to fetch service', error.message);
+//   }
+// };
 
 
 // export const getServiceById = async (req, res) => {

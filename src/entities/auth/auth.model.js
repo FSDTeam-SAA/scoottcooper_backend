@@ -5,15 +5,6 @@ import bcrypt from 'bcrypt';
 import { accessTokenExpires, accessTokenSecrete, refreshTokenExpires, refreshTokenSecrete } from '../../core/config/config.js';
 
 
-const AddressSchema = new mongoose.Schema({
-  country: { type: String, default: '' },
-  cityState: { type: String, default: '' },
-  roadArea: { type: String, default: '' },
-  postalCode: { type: String, default: '' },
-  taxId: { type: String, default: '' }
-}, { _id: false });
-
-
 const UserSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -37,7 +28,7 @@ const UserSchema = new mongoose.Schema(
     stripeAccountId: { type: String, default: null },
 
     bio: { type: String, default: '' },
-    address: { type: AddressSchema, default: () => ({}) },
+    address: { type: String, default: '' },
 
     profileImage: { type: String, default: '' },
     multiProfileImage: { type: [String], default: [] },

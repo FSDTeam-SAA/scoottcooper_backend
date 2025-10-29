@@ -2,7 +2,6 @@ import Stripe from 'stripe';
 import Booking from './booking.model.js';
 import sendEmail from '../../lib/sendEmail.js';
 import {
-  getConflictAfterPaymentTemplate,
   getPaymentSuccessForAdminTemplate,
   getPaymentSuccessTemplate
 } from '../../lib/emailTemplates.js';
@@ -52,59 +51,59 @@ export const stripeWebhookHandler = async (req, res) => {
       const customerEmail = session.customer_email || email;
 
       // Check for slot conflicts
-      const conflictingBookings = await Booking.find({
-        serviceId,
-        paymentStatus: 'paid',
-        slots: {
-          $elemMatch: {
-            $or: slots.map(slot => ({
-              date: new Date(slot.date),
-              startTime: slot.startTime,
-              endTime: slot.endTime
-            }))
-          }
-        }
-      });
+      // const conflictingBookings = await Booking.find({
+      //   serviceId,
+      //   paymentStatus: 'paid',
+      //   slots: {
+      //     $elemMatch: {
+      //       $or: slots.map(slot => ({
+      //         date: new Date(slot.date),
+      //         startTime: slot.startTime,
+      //         endTime: slot.endTime
+      //       }))
+      //     }
+      //   }
+      // });
 
-      if (conflictingBookings.length > 0) {
-        console.warn('⚠️ Slot conflict detected. Processing refund...');
-        const refund = await stripe.refunds.create({
-          payment_intent: session.payment_intent
-        });
+      // if (conflictingBookings.length > 0) {
+      //   console.warn('⚠️ Slot conflict detected. Processing refund...');
+      //   const refund = await stripe.refunds.create({
+      //     payment_intent: session.payment_intent
+      //   });
 
-        // Notify admin
-        await sendEmail({
-          to: adminMail,
-          subject: '❌ Booking Failed - Refund Issued',
-          html: getConflictAfterPaymentTemplate({
-            name,
-            email: customerEmail,
-            phone,
-            serviceId,
-            selectedSlots: slots,
-            sessionId: session.id,
-            paymentIntentId: session.payment_intent,
-            refundAmount: refund.amount / 100
-          })
-        });
+      //   // Notify admin
+      //   await sendEmail({
+      //     to: adminMail,
+      //     subject: '❌ Booking Failed - Refund Issued',
+      //     html: getConflictAfterPaymentTemplate({
+      //       name,
+      //       email: customerEmail,
+      //       phone,
+      //       serviceId,
+      //       selectedSlots: slots,
+      //       sessionId: session.id,
+      //       paymentIntentId: session.payment_intent,
+      //       refundAmount: refund.amount / 100
+      //     })
+      //   });
 
-        // Notify user
-        await sendEmail({
-          to: customerEmail,
-          subject: '❌ Booking Failed – Refund Processed',
-          html: `
-            <p>Hi ${name},</p>
-            <p>Unfortunately, the selected slots are no longer available. A full refund has been issued.</p>
-            <ul>
-              <li><strong>Refund Amount:</strong> $${(refund.amount / 100).toFixed(2)}</li>
-              <li><strong>Payment Intent:</strong> ${session.payment_intent}</li>
-            </ul>
-            <p>You can try booking a different time slot.</p>
-          `
-        });
+      //   // Notify user
+      //   await sendEmail({
+      //     to: customerEmail,
+      //     subject: '❌ Booking Failed – Refund Processed',
+      //     html: `
+      //       <p>Hi ${name},</p>
+      //       <p>Unfortunately, the selected slots are no longer available. A full refund has been issued.</p>
+      //       <ul>
+      //         <li><strong>Refund Amount:</strong> $${(refund.amount / 100).toFixed(2)}</li>
+      //         <li><strong>Payment Intent:</strong> ${session.payment_intent}</li>
+      //       </ul>
+      //       <p>You can try booking a different time slot.</p>
+      //     `
+      //   });
 
-        return res.status(200).send('Conflict detected, refund issued');
-      }
+      //   return res.status(200).send('Conflict detected, refund issued');
+      // }
 
       // Prevent duplicate webhook execution
       const existingBooking = await Booking.findOne({

@@ -153,7 +153,6 @@ export const getServicePaymentsSummary = async ({ page, limit }) => {
   };
 };
 
-// ===================== DASHBOARD STATS =====================
 export const getDashboardStats = async () => {
   const totalBookings = await Booking.countDocuments();
   const totalUsers = await User.countDocuments();
@@ -176,7 +175,34 @@ export const getDashboardStats = async () => {
 
   const totalRevenue = revenueData.length > 0 ? revenueData[0].totalRevenue : 0;
 
-  // Get top 3 services
+  // DEBUG: Check what's in the database
+  const paidBookings = await Booking.find({ paymentStatus: "paid" })
+    .limit(3)
+    .lean();
+
+  // Get top 3 services - BEFORE lookup
+  const beforeLookup = await Booking.aggregate([
+    {
+      $match: {
+        paymentStatus: "paid",
+      },
+    },
+    {
+      $group: {
+        _id: "$serviceId",
+        totalPayment: { $sum: "$totalAmount" },
+        bookingCount: { $sum: 1 },
+      },
+    },
+    {
+      $sort: { totalPayment: -1 },
+    },
+    {
+      $limit: 3,
+    },
+  ]);
+
+  // Get top 3 services - WITH lookup
   const topServices = await Booking.aggregate([
     {
       $match: {
@@ -192,14 +218,17 @@ export const getDashboardStats = async () => {
     },
     {
       $lookup: {
-        from: "services",
+        from: Service.collection.name, // Use actual collection name
         localField: "_id",
         foreignField: "_id",
         as: "serviceDetails",
       },
     },
     {
-      $unwind: "$serviceDetails",
+      $unwind: {
+        path: "$serviceDetails",
+        preserveNullAndEmptyArrays: true, // Keep for debugging
+      },
     },
     {
       $project: {
@@ -208,6 +237,7 @@ export const getDashboardStats = async () => {
         title: "$serviceDetails.title",
         totalPayment: 1,
         bookingCount: 1,
+        serviceDetailsExists: { $ifNull: ["$serviceDetails", "NOT_FOUND"] }, // Debug field
       },
     },
     {
@@ -218,6 +248,7 @@ export const getDashboardStats = async () => {
     },
   ]);
 
+
   return {
     totalUsers,
     totalServices,
@@ -226,7 +257,6 @@ export const getDashboardStats = async () => {
     topServices,
   };
 };
-
 // ===================== REVENUE REPORT =====================
 export const getRevenueReport = async ({ year, filterType, month }) => {
   const currentYear = year || new Date().getFullYear();
